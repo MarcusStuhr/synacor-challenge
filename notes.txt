@@ -7,7 +7,7 @@ Code #3: ABPxeIGXJfUW (self-test completion code)
 Code #4: aZpTqSYrrJoM (take tablet, use tablet)
 Code #5: MSHRTgOkZvVC (in the room with the can, after the ladder)
 Code #6: xgQwfXreCytt (after using the teleporter to go to the office)
-Code #7: RwdyJinevIPg (after correctly hacking the teleporter)
+Code #7: RwdyJinevIPg (after hacking the teleporter)
 Code #8: V88WOuqUooHv (after solving the orb challenge and reversing the mirror code)
 
 Note from the strange book:
@@ -58,13 +58,7 @@ now-bypassed confirmation mechanism will not protect you!
 Of course, since teleportation is impossible, this is all totally ridiculous.
 [/game text]
 
-
-
-
-Changes made to program:
--A walkthrough mode that auto-plays the game based on pre-typed steps
--A hack to allow for modification of registers via user input
--Added a logging feature
+My notation: Register 0 through 7
 
 After changing register 7 to some non-zero value, this is the message after using the teleporter:
 
@@ -73,9 +67,6 @@ A strange, electronic voice is projected into your mind:
 
   "Unusual setting detected!  Starting confirmation process!  Estimated time to completion: 1 billion years."
 [/game text]
-
-I generated log data right at the last "out" opcode going forward, and collected information until
-the output became repetitive. The interesting stuff occurs here:
 
 From the opcode dump:
 
@@ -130,23 +121,21 @@ This code can be simplified. Let (m,n,c) = (r0,r1,r7). Then:
 [code]
 cache = {}
 def A(m, n, c):
-    key = (m, n, c)
-    if key in cache: return cache[key]
     if m == 0:
-        cache[key] = n+1
+        return n+1
     elif m>0 and n==0:
-        cache[key] = A(m-1, c, c)
+        return A(m-1, c, c)
     elif m>0 and n>0:
-        cache[key] = A(m-1, A(m, n-1, c), c)
-    return cache[key]
+        return A(m-1, A(m, n-1, c), c)
 [/code]
 	
-As it turns out, it's a variant of the Ackermann function. The output from the function
-gets assigned to register 0. But since it's invoking (m,n) = (4,1), it's going to take way too
-long to finish, especially for large c.
+It's a variant of the Ackermann function. 
 
-Setting index 6027 to a return statement (18) allows us to bypass the function altogether, but
-then we encounter check functions like this:
+The output from the function gets assigned to register 0. But since it's invoking 
+(m,n) = (4,1), it's going to take way too long to finish, especially for large c.
+
+Setting index 6027 to a return statement (18) allows us to bypass the function 
+altogether, but then we encounter check functions like this later:
 
 [log snippet]
 registers: [6, 5, 3, 10, 101, 0, 0, 42] 
@@ -156,7 +145,7 @@ current index: 5491
 [/log snippet]
 
 It checks if register 0 is equal to 6 after exiting the Ackermann function. This is easy
-enough to bypass by hard-setting the register to 6, as done in the snippet above. Then:
+enough to bypass by hard-coding the register to 6, as done in the snippet above.
 
 [game text]
 You wake up on a sandy beach with a slight headache.  The last thing you remember is activating that 
@@ -169,8 +158,9 @@ It begins to rain.  The message washes away.  You take a deep breath and feel fi
 as the effects of the teleportation wear off.
 [/game text]
 
-...and the challenge website code ends up not actually working on the website. Even if we pre-set the 6 
-result, this incorrect code suggests that our value in register 7 actually needs to be correct, too.
+...but the challenge website code ends up not actually working on the website. 
+
+Even if we pre-set register 0 to value 6, register 7 needs to have the correct value, too.
 
 In other words, register 0 must be 6, and register 7 must be c, where A(4,1,c) = 6 mod 2^15.
 
@@ -203,17 +193,18 @@ A(4,1,c) = A(3, A(4, 0, c), c) = A(3, A(3, c, c), c) = ((c+1)^(A(3, c, c)+3)-2*c
          = ((1 + c)^((c - 1 + (1 + c)^(3 + c))/c) - 1)/c - 2
 
 
-We can loop over all 0 < c <= MOD and compute the result directly using standard modular exponentiation techniques.
+We can loop over all 0 < c <= MOD and compute the result directly using standard modular 
+exponentiation techniques.
 
-It turns out that A(4,1,25734) = 6 mod 2^15.
+Answer: A(4,1,25734) = 6 mod 2^15.
 
-So I added a "hack teleporter" command that does a couple things:
+I added a "hack teleporter" command, which accomplishes three main goals:
 
-1. Makes memory addresses 6027-6030 set register 0 to 6, and then return early to bypass the Ackermann function.
+#1. Bypasses the Ackermann function by overwriting its entry point with an early return opcode.
+#2. Sets register 0 to value 6, which is necessary to pass the verification check.
+#3. Sets register 7 to value 25734, which is necessary to pass the verification check.
 
-2. Set register 7 to 25734 immediately, since a nonzero register is needed to both trigger the jump
-event and also bypass the security check later. Unlike register 0, nothing will edit register 7 in the meantime,
-so it is fine to change it now and not worry about it again.
-
-Now the teleporter will work correctly.
-
+#1 and #3 are straightforward, but #2 needs to be handled carefully, since register 0
+gets overwritten often (in general). The teleporter hack modifies the program to change
+that register at the last moment before the verification check (i.e. at our early return
+from the Ackermann function).
