@@ -1,0 +1,250 @@
+My challenge website codes:
+
+Code #1: toFmdOvWvIfg (from the arch-spec file)
+Code #2: fuCIDPtggqRN (from the start of the text adventure)
+Code #3: ABPxeIGXJfUW (self-test completion code)
+Code #4: aZpTqSYrrJoM (take tablet, use tablet)
+Code #5: MSHRTgOkZvVC (in the room with the can, after the ladder)
+Code #6: xgQwfXreCytt (after using the teleporter to go to the office)
+Code #7: RwdyJinevIPg (after correctly hacking the teleporter)
+Code #8: ???
+
+
+Note from the strange book:
+
+[game text]
+The cover of this book subtly swirls with colors.  It is titled "A Brief Introduction to Interdimensional Physics".  It reads:
+
+Recent advances in interdimensional physics have produced fascinating
+predictions about the fundamentals of our universe!  For example,
+interdimensional physics seems to predict that the universe is, at its root, a
+purely mathematical construct, and that all events are caused by the
+interactions between eight pockets of energy called "registers".
+Furthermore, it seems that while the lower registers primarily control mundane
+things like sound and light, the highest register (the so-called "eighth
+register") is used to control interdimensional events such as teleportation.
+
+A hypothetical such teleportation device would need to have have exactly two
+destinations.  One destination would be used when the eighth register is at its
+minimum energy level - this would be the default operation assuming the user
+has no way to control the eighth register.  In this situation, the teleporter
+should send the user to a preconfigured safe location as a default.
+
+The second destination, however, is predicted to require a very specific
+energy level in the eighth register.  The teleporter must take great care to
+confirm that this energy level is exactly correct before teleporting its user!
+If it is even slightly off, the user would (probably) arrive at the correct
+location, but would briefly experience anomalies in the fabric of reality
+itself - this is, of course, not recommended.  Any teleporter would need to test
+the energy level in the eighth register and abort teleportation if it is not
+exactly correct.
+
+This required precision implies that the confirmation mechanism would be very
+computationally expensive.  While this would likely not be an issue for large-
+scale teleporters, a hypothetical hand-held teleporter would take billions of
+years to compute the result and confirm that the eighth register is correct.
+
+If you find yourself trapped in an alternate dimension with nothing but a
+hand-held teleporter, you will need to extract the confirmation algorithm,
+reimplement it on more powerful hardware, and optimize it.  This should, at the
+very least, allow you to determine the value of the eighth register which would
+have been accepted by the teleporter's confirmation mechanism.
+
+Then, set the eighth register to this value, activate the teleporter, and
+bypass the confirmation mechanism.  If the eighth register is set correctly, no
+anomalies should be experienced, but beware - if it is set incorrectly, the
+now-bypassed confirmation mechanism will not protect you!
+
+Of course, since teleportation is impossible, this is all totally ridiculous.
+[/game text]
+
+Changes to program:
+-A walkthrough mode that auto-plays the game until the teleporter stage
+-A hack to allow for modification of registers via user input
+-Diagnostic logging once register 7 has a nonzero value
+
+After changing register 7 to some non-zero value, this is the message after using the teleporter:
+
+[game text]
+A strange, electronic voice is projected into your mind:
+
+  "Unusual setting detected!  Starting confirmation process!  Estimated time to completion: 1 billion years."
+[/game text]
+
+I generated log data right at the last "out" opcode going forward, and collected information until
+the output became repetitive. The interesting stuff occurs here:
+
+From the opcode dump:
+
+[log snippet]
+memory indices 6027-6029 : opid 7 (jt): args ['Register 0', 6035]
+memory indices 6030-6033 : opid 9 (add): args ['Register 0', 'Register 1', 1]
+memory indices 6034-6034 : opid 18 (ret): args []
+memory indices 6035-6037 : opid 7 (jt): args ['Register 1', 6048]
+memory indices 6038-6041 : opid 9 (add): args ['Register 0', 'Register 0', 32767]
+memory indices 6042-6044 : opid 1 (set): args ['Register 1', 'Register 7']
+memory indices 6045-6046 : opid 17 (call): args [6027]
+memory indices 6047-6047 : opid 18 (ret): args []
+memory indices 6048-6049 : opid 2 (push): args ['Register 0']
+memory indices 6050-6053 : opid 9 (add): args ['Register 1', 'Register 1', 32767]
+memory indices 6054-6055 : opid 17 (call): args [6027]
+memory indices 6056-6058 : opid 1 (set): args ['Register 1', 'Register 0']
+memory indices 6059-6060 : opid 3 (pop): args ['Register 0']
+memory indices 6061-6064 : opid 9 (add): args ['Register 0', 'Register 0', 32767]
+memory indices 6065-6066 : opid 17 (call): args [6027]
+memory indices 6067-6067 : opid 18 (ret): args []
+[/log snippet]
+
+It's basically manipulating registers 0 and 1 a lot. 
+
+Turn this into a function with 6027 as the entry point:
+
+[code]
+r0, r1, r7, stack = 4, 1, ?, []
+
+def func_6027():
+    global r0, r1, r7, stack
+    if r0 == 0: #case 1
+        r0 = r1+1
+        return
+    elif r1 == 0: #case 2
+        r0 -= 1
+        r1 = r7
+        func_6027()
+        return
+	else: #case 3
+		stack.push(r0)
+		r1-=1
+		func_6027()
+		r1 = r0
+		r0 = stack.pop()-1
+		func_6027()
+		return
+[/code]
+
+This code can be simplified. Let (m,n,c) = (r0,r1,r7). Then:
+
+[code]
+cache = {}
+def A(m, n, c):
+    key = (m, n, c)
+    if key in cache: return cache[key]
+    if m == 0:
+        cache[key] = n+1
+    elif m>0 and n==0:
+        cache[key] = A(m-1, c, c)
+    elif m>0 and n>0:
+        cache[key] = A(m-1, A(m, n-1, c), c)
+    return cache[key]
+[/code]
+	
+As it turns out, it's a variant of the Ackermann function. The output from the function
+gets assigned to register 0. But since it's invoking (m,n) = (4,1), it's going to take way too
+long to finish, especially for large c.
+
+Setting index 6027 to a return statement (18) allows us to bypass the function altogether, but
+then we encounter check functions like this:
+
+[log snippet]
+registers: [6, 5, 3, 10, 101, 0, 0, 42] 
+stack (last 5): ...[3568, 3599, 2708, 5445, 3]
+opcode: eq, args: ['Register 1', 'Register 0', 6]
+current index: 5491
+[/log snippet]
+
+It checks if register 0 is equal to 6 after exiting the Ackermann function. This is easy
+enough to bypass by hard-setting the register to 6, as done in the snippet above. Then:
+
+[game text]
+You wake up on a sandy beach with a slight headache.  The last thing you remember is activating that 
+teleporter... but now you can't find it anywhere in your pack.  Someone seems to have drawn a message 
+in the sand here:
+
+    BsxSxqXqXAPE
+
+It begins to rain.  The message washes away.  You take a deep breath and feel firmly grounded in reality 
+as the effects of the teleportation wear off.
+[/game text]
+
+...and the challenge website code ends up not actually working on the website. Even if we pre-set the 6 
+result, this incorrect code suggests that our value in register 7 actually needs to be correct, too.
+
+In other words, register 0 must be 6, and register 7 must be c, where A(4,1,c) = 6 mod 2^15.
+
+A(0,0,c) = 0 + 1 = 1
+
+A(0,n,c) = n + 1
+
+
+A(1,0,c) = A(0,c,c)
+
+A(1,n,c) = A(0, A(1, n-1, c), c) = A(1, n-1, c) + 1 = A(1,0,c) + n = A(0,c,c) + n = c + n + 1
+
+
+A(2,0,c) = A(1,c,c)
+
+A(2,n,c) = A(1, A(2, n-1, c), c) = c + 1 + A(2, n-1, c) = n*(c+1) + A(2,0,c) = n*(c+1) + A(1,c,c) 
+         = n*(c+1) + (c + 1 + c) = 1 + 2*c + (1 + c)*n
+
+
+A(3,0,c) = A(2,c,c)
+
+A(3,n,c) = A(2, A(3, n-1, c), c) =   1 + 2*c + (1 + c)*A(3, n-1, c) = ( (c+1)^n * (c*(A(3, 0, c)+2)+1)-2*c-1 )/c
+         = ( (c+1)^n * (c*(A(2, c, c)+2)+1)-2*c-1 )/c
+         = ( (c+1)^n * (c*(1 + 2*c + (1 + c)*c+2)+1)-2*c-1 )/c
+         = ((c+1)^(n+3)-2*c-1)/c
+
+Finally:
+
+A(4,1,c) = A(3, A(4, 0, c), c) = A(3, A(3, c, c), c) = ((c+1)^(A(3, c, c)+3)-2*c-1)/c
+         = ((c+1)^(((c+1)^(c+3)-2*c-1)/c+3)-2*c-1)/c
+         = ((1 + c)^((c - 1 + (1 + c)^(3 + c))/c) - 1)/c - 2
+
+
+We can loop over all 0 < c <= MOD and compute the result directly using standard modular exponentiation techniques.
+
+It turns out that A(4,1,25734) = 6 mod 2^15.
+
+So I added a "hack teleport" command that does a couple things:
+
+1. Makes memory addresses 6027-6030 set register 0 to 6, and then return early to bypass the Ackermann function.
+
+2. Set register 7 to 25734 immediately, since a nonzero register is needed to both trigger the jump
+event and also bypass the security check laater. Unlike register 0, nothing will edit register 7 in the meantime,
+so it is fine to change it now and not worry about it again.
+
+
+
+
+Journal text, later in the game:
+
+[game text]
+Fireflies were using this dusty old journal as a resting spot until you scared them off.  It reads:
+
+Day 1: We have reached what seems to be the final in a series of puzzles guarding an ancient treasure.  I suspect most adventurers give up long before this point, but we're so close!  We must press on!
+
+Day 1: P.S.: It's a good thing the island is tropical.  We should have food for weeks!
+
+Day 2: The vault appears to be sealed by a mysterious force - the door won't budge an inch.  We don't have the resources to blow it open, and I wouldn't risk damaging the contents even if we did.  We'll have to figure out the lock mechanism.
+
+Day 3: The door to the vault has a number carved into it.  Each room leading up to the vault has more numbers or symbols embedded in mosaics in the floors.  We even found a strange glass orb in the antechamber on a pedestal itself labeled with a number.  What could they mean?
+
+Day 5: We finally built up the courage to touch the strange orb in the antechamber.  It flashes colors as we carry it from room to room, and sometimes the symbols in the rooms flash colors as well.  It simply evaporates if we try to leave with it, but another appears on the pedestal in the antechamber shortly thereafter.  It also seems to do this even when we return with it to the antechamber from the other rooms.
+
+Day 8: When the orb is carried to the vault door, the numbers on the door flash black, and then the orb evaporates.  Did we do something wrong?  Doesn't the door like us?  We also found a small hourglass near the door, endlessly running.  Is it waiting for something?
+
+Day 13: Some of my crew swear the orb actually gets heaver or lighter as they walk around with it.  Is that even possible?  They say that if they walk through certain rooms repeatedly, they feel it getting lighter and lighter, but it eventually just evaporates and a new one appears as usual.
+
+Day 21: Now I can feel the orb changing weight as I walk around.  It depends on the area - the change is very subtle in some places, but certainly more noticeable in others, especially when I walk into a room with a larger number or out of a room marked '*'.  Perhaps we can actually control the weight of this mysterious orb?
+
+Day 34: One of the crewmembers was wandering the rooms today and claimed that the numbers on the door flashed white as he approached!  He said the door still didn't open, but he noticed that the hourglass had run out and flashed black.  When we went to check on it, it was still running like it always does.  Perhaps he is going mad?  If not, which do we need to appease: the door or the hourglass?
+Both?
+
+Day 55: The fireflies are getting suspicious.  One of them looked at me funny today and then flew off.  I think I saw another one blinking a little faster than usual.  Or was it a little slower?  We are getting better at controlling the weight of the orb, and we think that's what the numbers are all about.  The orb starts at the weight labeled on the pedestal, and goes down as we leave a room marked '-', up as we leave a room marked '+', and up even more as we leave a room marked '*'.  Entering rooms with larger numbers has a greater effect.
+
+Day 89: Every once in a great while, one of the crewmembers has the same story: that the door flashes white, the hourglass had already run out, it flashes black, and the orb evaporates.  Are we too slow?  We can't seem to find a way to make the orb's weight match what the door wants before the hourglass runs out.  If only we could find a shorter route through the rooms...
+
+Day 144: We are abandoning the mission.  None of us can work out the solution to the puzzle.  I will leave this journal here to help future adventurers, though I am not sure what help it will give.  Good luck!
+[/game text]
+
+
