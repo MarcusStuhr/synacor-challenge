@@ -213,7 +213,7 @@ So I added a "hack teleporter" command that does a couple things:
 1. Makes memory addresses 6027-6030 set register 0 to 6, and then return early to bypass the Ackermann function.
 
 2. Set register 7 to 25734 immediately, since a nonzero register is needed to both trigger the jump
-event and also bypass the security check laater. Unlike register 0, nothing will edit register 7 in the meantime,
+event and also bypass the security check later. Unlike register 0, nothing will edit register 7 in the meantime,
 so it is fine to change it now and not worry about it again.
 
 Now the teleporter will work correctly.
