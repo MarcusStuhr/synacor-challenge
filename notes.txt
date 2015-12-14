@@ -58,10 +58,13 @@ now-bypassed confirmation mechanism will not protect you!
 Of course, since teleportation is impossible, this is all totally ridiculous.
 [/game text]
 
-Changes to program:
--A walkthrough mode that auto-plays the game until the teleporter stage
+
+
+
+Changes made to program:
+-A walkthrough mode that auto-plays the game based on pre-typed steps
 -A hack to allow for modification of registers via user input
--Diagnostic logging once register 7 has a nonzero value
+-Added a logging feature
 
 After changing register 7 to some non-zero value, this is the message after using the teleporter:
 
@@ -95,9 +98,9 @@ memory indices 6065-6066 : opid 17 (call): args [6027]
 memory indices 6067-6067 : opid 18 (ret): args []
 [/log snippet]
 
-It's basically manipulating registers 0 and 1 a lot. 
+It's mostly manipulating registers 0 and 1 over and over again. 
 
-Turn this into a function with 6027 as the entry point:
+Turn this section into a function with 6027 as the entry point:
 
 [code]
 r0, r1, r7, stack = 4, 1, ?, []
@@ -175,7 +178,6 @@ A(0,0,c) = 0 + 1 = 1
 
 A(0,n,c) = n + 1
 
-
 A(1,0,c) = A(0,c,c)
 
 A(1,n,c) = A(0, A(1, n-1, c), c) = A(1, n-1, c) + 1 = A(1,0,c) + n = A(0,c,c) + n = c + n + 1
@@ -205,7 +207,7 @@ We can loop over all 0 < c <= MOD and compute the result directly using standard
 
 It turns out that A(4,1,25734) = 6 mod 2^15.
 
-So I added a "hack teleport" command that does a couple things:
+So I added a "hack teleporter" command that does a couple things:
 
 1. Makes memory addresses 6027-6030 set register 0 to 6, and then return early to bypass the Ackermann function.
 
@@ -213,7 +215,7 @@ So I added a "hack teleport" command that does a couple things:
 event and also bypass the security check laater. Unlike register 0, nothing will edit register 7 in the meantime,
 so it is fine to change it now and not worry about it again.
 
-
+Now the teleporter will work correctly.
 
 
 Journal text, later in the game:
