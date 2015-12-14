@@ -135,7 +135,7 @@ The output from the function gets assigned to register 0. But since it's invokin
 (m,n) = (4,1), it's going to take way too long to finish, especially for large c.
 
 Setting index 6027 to a return statement (18) allows us to bypass the function 
-altogether, but then we encounter check functions like this later:
+altogether, but then we encounter verification functions like this later:
 
 [log snippet]
 registers: [6, 5, 3, 10, 101, 0, 0, 42] 
@@ -201,10 +201,10 @@ Answer: A(4,1,25734) = 6 mod 2^15.
 I added a "hack teleporter" command, which accomplishes three main goals:
 
 #1. Bypasses the Ackermann function by overwriting its entry point with an early return opcode.
-#2. Sets register 0 to value 6, which is necessary to pass the verification check.
-#3. Sets register 7 to value 25734, which is necessary to pass the verification check.
+#2. Sets register 0 to value 6, which is necessary to pass the verification function.
+#3. Sets register 7 to value 25734, which is necessary to pass the verification function.
 
 #1 and #3 are straightforward, but #2 needs to be handled carefully, since register 0
 gets overwritten often (in general). The teleporter hack modifies the program to change
-that register at the last moment before the verification check (i.e. at our early return
+that register at the last moment before the verification function (i.e. at our early return
 from the Ackermann function).
