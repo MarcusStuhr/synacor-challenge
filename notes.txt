@@ -1,3 +1,4 @@
+
 My challenge website codes:
 
 Code #1: toFmdOvWvIfg (from the arch-spec file)
@@ -115,14 +116,14 @@ def func_6027():
         r1 = r7
         func_6027()
         return
-	else: #case 3
-		stack.push(r0)
-		r1-=1
-		func_6027()
-		r1 = r0
-		r0 = stack.pop()-1
-		func_6027()
-		return
+    else: #case 3
+	stack.push(r0)
+	r1-=1
+	func_6027()
+	r1 = r0
+	r0 = stack.pop()-1
+        func_6027()
+        return
 [/code]
 
 This code can be simplified. Let (m,n,c) = (r0,r1,r7). Then:
