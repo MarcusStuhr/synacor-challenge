@@ -8,16 +8,14 @@ class VirtualMachine():
 
     NUM_REGISTERS = 8
     MOD = 32768
-    LOGGING_ENABLED = False
     CHALLENGE_FILENAME = "challenge.bin"
     WALKTHROUGH_FILENAME = "walkthrough.txt"
     LOG_FILENAME = "log.txt"
     DUMP_FILENAME = "opcode_dump.txt"
-    
-    OPCODES = ('halt', 'set', 'push', 'pop', 'eq', 'gt', 'jmp', 'jt', 'jf', 'add',
-               'mult', 'mod', 'and', 'or', 'not', 'rmem', 'wmem', 'call', 'ret',
-               'out', 'in', 'noop')
 
+    OPCODES = ("halt", "set", "push", "pop", "eq", "gt", "jmp", "jt", "jf", "add",
+               "mult", "mod", "and", "or", "not", "rmem", "wmem", "call", "ret",
+               "out", "in", "noop")
 
     def __init__(self):
         """
@@ -25,6 +23,7 @@ class VirtualMachine():
         """
         self.walkthrough_index = 0
         self.use_walkthrough = False
+        self.logging_enabled = False
         self.input_buffer = ""
         self.memory_index = 0
         self.stack = []
@@ -32,7 +31,9 @@ class VirtualMachine():
         self.memory = self.read_program(self.CHALLENGE_FILENAME)
         self.walkthrough_steps = self.read_walkthrough(self.WALKTHROUGH_FILENAME)
         self.dump_program(self.DUMP_FILENAME)
-        if self.LOGGING_ENABLED: self.log_file = open(self.LOG_FILENAME,"w")
+
+
+    #====================virtual machine run/terminate code=====================
 
 
     def get_opcode_func_and_args(self):
@@ -43,12 +44,12 @@ class VirtualMachine():
         assert self.memory_index < len(self.memory)
 
         opcode_id = self.memory[self.memory_index]
-        
+
         try:
             opcode = self.OPCODES[opcode_id] #read opcode
         except:
             opcode = "unknown"
-            
+
         func = getattr(self, "op_{}".format(opcode))
         num_args = len(getargspec(func).args)-1 #num. of args from func(), -1 (for self)
         args = []
@@ -59,156 +60,36 @@ class VirtualMachine():
         return opcode_id, opcode, func, args
 
 
-    def format_args(self,args):
-        new_args = []
-        for arg in args:
-            if self.MOD <= int(arg) < self.MOD + self.NUM_REGISTERS:
-                new_args.append("Register {}".format(int(arg) % self.MOD))
-            else:
-                new_args.append(int(arg))
-        return str(new_args)
-
-
     def run(self):
         """
-        Runs the virtual machine.
-        The state of the machine is logged with each operation, assuming self.LOGGING_ENABLED is set to True
+        Runs the virtual machine
         """
         self.memory_index = 0
 
         while self.memory_index < len(self.memory):
             opcode_id, opcode, func, args = self.get_opcode_func_and_args()
 
-            if self.LOGGING_ENABLED:
-                log_cur_index = self.memory_index - len(args)-1
-                self.log_file.write("registers: {} \n".format(str(self.register)))
-                self.log_file.write("stack (last 5): ...{}\n".format(str(self.stack[-5:])))
-                    
-                if opcode == "out":
-                    temp = chr(self.resolve_value(int(args[0])))
-                    self.log_file.write("opcode: {}, args: {}, char: {}\n".format(opcode,self.format_args(args),temp))
-                else:
-                    self.log_file.write("opcode: {}, args: {}\n".format(opcode,self.format_args(args)))
-                        
-                self.log_file.write("current index: {}\n\n".format(log_cur_index))
-                
+            if self.walkthrough_index >= len(self.walkthrough_steps):
+                self.use_walkthrough = False
+
+            if self.logging_enabled:
+                self.log_state(opcode, args)
+
             func(*args) #run the function with the relevant args passed in
             #note that self.memory_index may change if a jmp is performed
 
         self.terminate()
 
 
-    
     def terminate(self):
         """
         Close log, terminate virtual machine
         """
-        if self.LOGGING_ENABLED: self.log_file.close()
+        if self.logging_enabled: self.toggle_logging()
         sys.exit()
 
 
-    def read_program(self, infile):
-        """
-        Read the program from the input file into the memory buffer
-        """
-        memory = []
-        try:
-            f = open(infile,"rb")
-            chunk = f.read(2)
-            while chunk != '':
-                memory.append(int(struct.unpack('<H', chunk)[0]))
-                chunk = f.read(2)
-            f.close()
-        except:
-            raise IOError("File {} not found.".format(infile))
-        return memory
-    
-
-    def read_walkthrough(self,walkthrough_filename):
-        """
-        Read the walkthrough steps from file into list
-        """
-        steps = []
-        try:
-            for line in open(walkthrough_filename,"r"):
-                steps.append(line.strip())
-        except:
-            raise IOError("File {} not found.".format(walkthrough_filename))
-        return steps
-
-
-    def dump_program(self, dump_filename):
-        """
-        Dumps the program's opcodes and arguments to a file.
-        """
-        self.memory_index = 0
-        f = open(dump_filename, "w")
-        memory_start = 0
-        memory_end = 0
-        unknowns = []
-        
-        while self.memory_index < len(self.memory):
-            opcode_id, opcode, func, args = self.get_opcode_func_and_args()
-            memory_end = memory_start + len(args)
-            line = (memory_start, memory_end, opcode_id, opcode, self.format_args(args))
-            f.writelines("memory indices {}-{} : opid {} ({}): args {}\n".format(*line))
-            memory_start = memory_end + 1
-        self.memory_index = 0
-        f.close()
-
-
-    def custom_input(self):
-        """
-        Checks to see if any custom commands were entered by the user.
-        If so, perform the custom action and return True so the input buffer can be cleared.
-        Otherwise it will return False and the user's input will be processed normally.
-        """
-        
-        match = re.match(r"set register (\d+) to (\d+)", self.input_buffer)
-        if match:
-            register_id, value = map(int,match.groups())
-            self.set_register((register_id % self.MOD) + self.MOD, value)
-            print "Register {} set to value {}".format(register_id, value)
-            return True
-        
-        match = re.match(r"set memory (\d+) to (\d+)", self.input_buffer.lower())
-        if match:
-            memory_id, value = map(int,match.groups())
-            self.set_memory(memory_id,value)
-            print "Memory location {} set to value {}".format(memory_id,value)
-            return True
-        
-        if self.input_buffer.strip() == "print registers":
-            print self.register
-            return True
-        
-        if self.input_buffer.strip() in ["quit", "exit", "leave"]:
-            self.terminate()
-            return True
-        
-        if self.input_buffer.strip() in ["use walkthrough", "walk"]:
-            self.use_walkthrough = True
-            return True
-
-        if self.input_buffer.strip() == "hack teleporter":
-            '''
-            At mem index 6027, set register 0 to the answer 6 --
-            this will change the register later at the right moment.
-            We can set register 7 to the right value now, since
-            a nonzero value triggers the travel event and also
-            bypasses the security check later (nothing changes this
-            register in the meantime)
-            '''
-            self.set_memory(6027,1)          
-            self.set_memory(6028,self.MOD+0) 
-            self.set_memory(6029,6)     
-            self.set_memory(6030,18)            #early return to bypass modified Ackermann function
-            self.set_register(self.MOD+7,25734) #A(4,1,25734) = 6 mod 2^15
-            
-            print "Teleporter hacked. It will now redirect you correctly."
-            return True
-
-        return False
+    #======================getters, setters, correctors=========================
 
 
     def resolve_value(self, a):
@@ -256,10 +137,147 @@ class VirtualMachine():
         """
         assert a < len(self.memory)
         self.memory[a] = b
-        
-            
-    #=============================op commands=============================
-    
+
+
+    #===================bulk data read / write procedures=======================
+
+
+    def read_program(self, infile):
+        """
+        Read the program from the input file into the memory buffer
+        """
+        memory = []
+        try:
+            f = open(infile,"rb")
+            chunk = f.read(2)
+            while chunk != '':
+                memory.append(int(struct.unpack('<H', chunk)[0]))
+                chunk = f.read(2)
+            f.close()
+        except:
+            raise IOError("File {} not found.".format(infile))
+        return memory
+
+
+    def read_walkthrough(self,walkthrough_filename):
+        """
+        Read the walkthrough steps from file into list
+        """
+        steps = []
+        try:
+            for line in open(walkthrough_filename,"r"):
+                steps.append(line.strip())
+        except:
+            raise IOError("File {} not found.".format(walkthrough_filename))
+        return steps
+
+
+    def dump_program(self, dump_filename):
+        """
+        Dumps the program's opcodes and arguments to a file.
+        """
+        self.memory_index = 0
+        f = open(dump_filename, "w")
+        memory_start = 0
+        memory_end = 0
+        unknowns = []
+
+        while self.memory_index < len(self.memory):
+            opcode_id, opcode, func, args = self.get_opcode_func_and_args()
+            memory_end = memory_start + len(args)
+            line = (memory_start, memory_end, opcode_id, opcode, self.format_args(args))
+            f.writelines("memory indices {}-{} : opid {} ({}): args {}\n".format(*line))
+            memory_start = memory_end + 1
+        self.memory_index = 0
+        f.close()
+
+
+    def log_state(self, opcode, args):
+        """
+        Logs the current state of the virtual machine
+        (registers, stack, arguments, and memory index)
+        """
+        log_cur_index = self.memory_index - len(args)-1
+        self.log_file.write("registers: {} \n".format(str(self.register)))
+        self.log_file.write("stack (last 5): ...{}\n".format(str(self.stack[-5:])))
+        self.log_file.write("opcode: {}, args: {}\n".format(opcode, self.format_args(args)))
+        self.log_file.write("current index: {}\n\n".format(log_cur_index))
+
+
+    #===========================support functions==============================
+
+
+    def format_args(self,args):
+        """
+        Replaces memory index literals with Register IDs when writing args,
+        for clarity (e.g. when writing to the log, the opcode dump file, etc)
+        """
+        new_args = []
+        for arg in args:
+            if self.MOD <= int(arg) < self.MOD + self.NUM_REGISTERS:
+                new_args.append("Register {}".format(int(arg) % self.MOD))
+            else:
+                new_args.append(int(arg))
+        return str(new_args)
+
+
+    def toggle_logging(self):
+        """
+        Activates logging if currently inactive, and vice-versa
+        """
+        if self.logging_enabled == False:
+            print "Logging started."
+            self.logging_enabled = True
+            self.log_file = open(self.LOG_FILENAME,"w")
+        else:
+            print "Logging stopped."
+            self.logging_enabled = False
+            self.log_file.close()
+
+
+    def hack_teleporter(self):
+        """
+        Solves the teleporter puzzle by hard-coding the correct output of the Ackermann
+        procedure into the registers while bypassing the procedure itself.
+        See notes.txt for more details.
+        """
+        self.set_memory(6027,1)             #entry point for the modified Ackermann function
+        self.set_memory(6028,self.MOD+0)
+        self.set_memory(6029,6)
+        self.set_memory(6030,18)            #early return
+        self.set_register(self.MOD+7,25734) #A(4,1,25734) = 6 mod 2^15
+
+        print "Teleporter hacked. It will now redirect you correctly."
+
+
+    def custom_input(self):
+        """
+        Checks to see if any custom commands were entered by the user.
+        If so, perform the custom action and return True so the input buffer can be cleared.
+        Otherwise it will return False and the user's input will be processed normally.
+        """
+
+        if "log" in self.input_buffer.strip():
+            self.toggle_logging()
+            return True
+
+        if self.input_buffer.strip() == "quit":
+            self.terminate()
+            return True
+
+        if self.input_buffer.strip() == "use walkthrough":
+            self.use_walkthrough = True
+            return True
+
+        if self.input_buffer.strip() == "hack teleporter":
+            self.hack_teleporter()
+            return True
+
+        return False
+
+
+    #======================opcode commands / functions==========================
+
 
     def op_halt(self):
         """
@@ -420,20 +438,18 @@ class VirtualMachine():
         encountered; this means that you can safely read whole lines from the keyboard
         and trust that they will be fully read.
         """
-        if self.walkthrough_index >= len(self.walkthrough_steps): #turn off walkthrough once at end
-            self.use_walkthrough = False
 
         if self.input_buffer == "":
             if self.use_walkthrough == True:
-                self.input_buffer = self.walkthrough_steps[self.walkthrough_index].lower() + "\n"
+                self.input_buffer = self.walkthrough_steps[self.walkthrough_index].lower().strip() + "\n"
                 self.walkthrough_index+=1
             else:
                 self.input_buffer = raw_input().lower().strip() + "\n"
-                
+
             if self.custom_input():
                 self.input_buffer == ""
                 return
-        
+
         self.set_register(a, ord(self.input_buffer[0]))
         self.input_buffer = self.input_buffer[1:]
 
@@ -450,12 +466,12 @@ class VirtualMachine():
         unknown opcode, in the event of error
         """
         pass
-    
+
 
 def main():
     virtual_machine = VirtualMachine()
     virtual_machine.run()
-    
-    
+
+
 if __name__ == "__main__":
     main()
